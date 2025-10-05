@@ -1,10 +1,10 @@
-from telegram import Update, InlineKeyboardMarkup,InlineKeyboardButton
-from telegram.ext import (Application, CommandHandler, MessageHandler,filters, ContextTypes, CallbackQueryHandler)
-
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.ext import (Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler)
 import os
 from dotenv import load_dotenv
 import re
 import time
+import json
 
 
 load_dotenv("token.env")                            # baca file token.env
@@ -13,10 +13,62 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID"))           # Ganti dengan ID channel ka
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")    # username channel kamu
 ADMINS = [1660366579,]                              # ganti dengan Telegram ID admin kamu
 
+
+# =========================================================
+# 🔐 FITUR TAMBAHAN: SISTEM WARNING & BAN USER
+# =========================================================
+
+VIOLATOR_FILE = "violators.json"
+
+def load_violators():
+    """Memuat data pelanggar dari file JSON"""
+    if os.path.exists(VIOLATOR_FILE):
+        with open(VIOLATOR_FILE, "r", encoding="utf-8") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return {}
+    return {}
+
+def save_violators(data):
+    """Menyimpan data pelanggar ke file JSON"""
+    with open(VIOLATOR_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+def add_warning(user_id: int, username: str):
+    """Menambah warning ke user. Return tuple (warnings, banned_status)."""
+    data = load_violators()
+    user_id = str(user_id)
+
+    if user_id not in data:
+        data[user_id] = {"username": username, "warnings": 0, "banned": False}
+
+    # tambah warning
+    data[user_id]["warnings"] += 1
+
+    # jika warning >= 3 maka banned
+    if data[user_id]["warnings"] >= 3:
+        data[user_id]["banned"] = True
+
+    save_violators(data)
+    return data[user_id]["warnings"], data[user_id]["banned"]
+
+def is_banned(user_id: int):
+    """Cek apakah user sudah diban"""
+    data = load_violators()
+    user = data.get(str(user_id))
+    if user and user.get("banned"):
+        return True
+    return False
+
+
+# =========================================================
+# BAGIAN SCRIPT ASLI
+# =========================================================
+
 # baca daftar kata terlarang dari file
 with open("badwords.txt", "r", encoding="utf-8") as f:
     BAD_WORDS = [line.strip().lower() for line in f if line.strip()]
-
 
 # mapping huruf mirip
 LEET_MAP = {
@@ -69,19 +121,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "   Form : https://t.me/Maskerfess/4\n\n"
         "Topeng sudah terpasang.  \n"
         "Sekarang saatnya bicara.\n\n"
-
         "___ ====="
     )
     await update.message.reply_text(text, parse_mode="Markdown")
 
 
 # Fungsi cek membership
-async def check_membership(update: Update, context: 
-ContextTypes.DEFAULT_TYPE):
+async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     try:
-        member = await context.bot.get_chat_member(CHANNEL_USERNAME, 
-user_id)
+        member = await context.bot.get_chat_member(CHANNEL_USERNAME, user_id)
         if member.status in ["left", "kicked"]:
             await update.message.reply_text(
                 f"⚠️ Kamu harus join channel {CHANNEL_USERNAME} dulu!"
@@ -98,15 +147,22 @@ user_id)
 
 
 # Handler pesan user
+async def menfess(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    username = update.effective_user.username or "-"
+    
+    # 🚫 Cek apakah user dibanned
+    if is_banned(user_id):
+        await update.message.reply_text(
+            "🚫 Kamu telah diblokir karena berulang kali melanggar aturan."
+        )
+        return
 
-async def menfess(update: Update, context: 
-ContextTypes.DEFAULT_TYPE):
     # cek membership channel dulu
     if not await check_membership(update, context):
         return  # hentikan jika belum join
         
     user_text = update.message.text.strip()
-    user_id = update.effective_user.id
     now = time.time()
 
     # cek jeda 10 menit, kecuali admin
@@ -123,10 +179,18 @@ ContextTypes.DEFAULT_TYPE):
 
     # 🚨 CEK KATA TERLARANG
     if contains_badword(user_text, BAD_WORDS):
-        await update.message.reply_text(
-            "❌ Pesanmu mengandung kata yang tidak pantas.\n"
-            "Coba gunakan bahasa yang lebih baik ya 🙏"
-        )
+        warnings, banned = add_warning(user_id, username)
+        if banned:
+            await update.message.reply_text(
+                "🚫 Kamu telah diblokir karena 3 kali melanggar aturan. "
+                "Kamu tidak bisa lagi menggunakan bot ini."
+            )
+        else:
+            await update.message.reply_text(
+                f"⚠️ Pesanmu mengandung kata yang tidak pantas.\n"
+                f"Ini peringatan ke-{warnings} dari 3. "
+                "Jika kamu melanggar lagi, kamu akan diblokir."
+            )
         return
 
 
@@ -162,12 +226,10 @@ ContextTypes.DEFAULT_TYPE):
         f"Target : {target}\n"
         f"Ungkapan : {ungkapan}"
     )
-    await context.bot.send_message(chat_id=CHANNEL_ID, text=text, 
-parse_mode="Markdown")
+    await context.bot.send_message(chat_id=CHANNEL_ID, text=text, parse_mode="Markdown")
 
     # update waktu terakhir user kirim
     user_last_sent[user_id] = now
-
 
     # konfirmasi ke user
     await update.message.reply_text("✅ Pssst... Pesanmu telah dilepaskan dari balik bayang. Kini biarlah mereka membacanya… tanpa tahu siapa yang menulisnya!")
@@ -178,8 +240,7 @@ def main():
 
     # daftar handler
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, 
-menfess))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menfess))
 
     # jalankan polling
     app.run_polling(drop_pending_updates=True)
