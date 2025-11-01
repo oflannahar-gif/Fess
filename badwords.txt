@@ -57,7 +57,6 @@ cilaka
 cino
 cocot
 cocote
-cok
 cokil
 colai
 colay
@@ -172,7 +171,7 @@ pelacur
 pelakor
 peler
 pepek
-pesek
+
 puki
 pukima
 pukimae
@@ -183,9 +182,7 @@ riyad
 sange
 sepong
 sepuh
-sial
-sialan
-silit
+
 sinting
 sontoloyo
 
