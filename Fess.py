@@ -134,14 +134,16 @@ def escape_markdown(text: str) -> str:
     return text
 
 def contains_badword(message: str, badwords: list):
-    """Kembalikan kata kotor yang terdeteksi, atau None jika aman."""
+    """Cek apakah pesan mengandung kata kotor secara utuh (bukan di dalam kata lain)."""
     cleaned = super_clean_text(message)
     for word in badwords:
         word_cleaned = super_clean_text(word)
-        if word_cleaned in cleaned:
+        # hanya deteksi kata utuh (pakai boundary \b)
+        if re.search(rf"\b{re.escape(word_cleaned)}\b", cleaned):
             print(f"[DEBUG] Kata terdeteksi: {word} -> {message}")
-            return word  # ⬅️ Kembalikan kata yang ditemukan
+            return word
     return None
+
 
 
 
