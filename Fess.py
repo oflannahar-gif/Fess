@@ -1,4 +1,4 @@
-from telegram import Update
+from telegram import Update, InputFile
 from telegram.ext import (Application, CommandHandler, MessageHandler, filters, ContextTypes)
 import os
 from dotenv import load_dotenv
@@ -6,6 +6,7 @@ import re
 import time
 import json
 import unicodedata
+from datetime import datetime
 
 
 # =========================================================
@@ -185,6 +186,68 @@ async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Gagal mengecek status keanggotaan channel. Pastikan bot sudah admin di channel.")
         return False
 
+async def process_menfess_text(user_id, username, user_text, context, update, photo=None):
+    now = time.time()
+
+    # 🚫 cek banned
+    if is_banned(user_id):
+        await update.message.reply_text("🚫 Kamu telah diblokir karena berulang kali melanggar aturan.")
+        return
+
+    # cek cooldown (10 menit)
+    if user_id not in ADMINS:
+        if user_id in user_last_sent:
+            elapsed = now - user_last_sent[user_id]
+            if elapsed < 600:
+                remaining = int((600 - elapsed) / 60) + 1
+                await update.message.reply_text(f"⏳ Tunggu {remaining} menit lagi sebelum kirim menfess berikutnya.")
+                return
+
+    # 🚨 cek badword
+    detected_word = contains_badword(user_text, BAD_WORDS)
+    if detected_word:
+        warnings, banned = add_warning(user_id, username, detected_word, user_text)
+        safe_word = escape_markdown(detected_word)
+        if banned:
+            await update.message.reply_text(
+                f"🚫 Kamu telah diblokir karena 3 pelanggaran.\nKata terakhir yang melanggar: `{safe_word}`",
+                parse_mode="Markdown"
+            )
+        else:
+            await update.message.reply_text(
+                f"⚠️ Pesanmu mengandung kata tidak pantas: `{safe_word}`\nPeringatan ke-{warnings} dari 3.",
+                parse_mode="Markdown"
+            )
+        return
+
+    # cek format menfess
+    pattern = (
+        r"^Dibalik Masker\s*:\s*(.+)\n"
+        r"Target\s*:\s*(.+)\n"
+        r"Ungkapan\s*:\s*(.+)"
+    )
+    match = re.match(pattern, user_text, re.DOTALL | re.IGNORECASE)
+    if not match:
+        await update.message.reply_text(
+            "❌ Format salah.\nGunakan format berikut:\n\n"
+            "`Dibalik Masker : \nTarget : \nUngkapan : \n`",
+            parse_mode="Markdown"
+        )
+        return
+
+    dibalik_masker, target, ungkapan = match.groups()
+    caption = f"📩 *Menfess Baru*\n\nDibalik Masker : {dibalik_masker.strip()}\nTarget : {target.strip()}\nUngkapan : {ungkapan.strip()}"
+
+    # kirim ke channel — jika ada foto, kirim foto + caption
+    if photo:
+        await context.bot.send_photo(chat_id=CHANNEL_ID, photo=photo, caption=caption, parse_mode="Markdown")
+    else:
+        await context.bot.send_message(chat_id=CHANNEL_ID, text=caption, parse_mode="Markdown")
+
+    user_last_sent[user_id] = now
+    await update.message.reply_text("✅ Pssst... Pesanmu telah dilepaskan dari balik bayang. Kini biarlah mereka membacanya… tanpa tahu siapa yang menulisnya!")
+
+
 async def menfess(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     username = update.effective_user.username or "-"
@@ -253,6 +316,25 @@ async def menfess(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_last_sent[user_id] = now
     await update.message.reply_text("✅ Pssst... Pesanmu telah dilepaskan dari balik bayang. Kini biarlah mereka membacanya… tanpa tahu siapa yang menulisnya!")
 
+# 🔹 Handler foto + caption
+async def menfess_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    caption = update.message.caption
+    user_id = update.effective_user.id
+    username = update.effective_user.username or "-"
+
+    # kalau tidak ada caption, tolak
+    if not caption:
+        await update.message.reply_text("❌ Kirim foto dengan caption sesuai format menfess.")
+        return
+
+    # ambil file_id foto (foto paling besar)
+    photo = update.message.photo[-1].file_id
+
+    # lanjutkan ke fungsi yang sudah ada (menfess) tapi kirim caption + foto
+    await process_menfess_text(user_id, username, caption, context, update, photo=photo)
+
+
+
 async def violators(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id not in ADMINS:
@@ -281,6 +363,7 @@ def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("violators", violators))
+    app.add_handler(MessageHandler(filters.PHOTO, menfess_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menfess))
 
     print("Bot menfess berjalan...")
