@@ -1,27 +1,28 @@
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import (Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler)
+from telegram import Update
+from telegram.ext import (Application, CommandHandler, MessageHandler, filters, ContextTypes)
 import os
 from dotenv import load_dotenv
 import re
 import time
 import json
-
-
-load_dotenv("token.env")                            # baca file token.env
-TOKEN = os.getenv("BOT_TOKEN")                      # Ganti dengan token bot kamu
-CHANNEL_ID = int(os.getenv("CHANNEL_ID"))           # Ganti dengan ID channel kamu (format biasanya -100xxxxxxxxxx)
-CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")    # username channel kamu
-ADMINS = [1660366579,]                              # ganti dengan Telegram ID admin kamu
+import unicodedata
 
 
 # =========================================================
-# 🔐 FITUR TAMBAHAN: SISTEM WARNING & BAN USER
+# 🔧 KONFIGURASI
 # =========================================================
+load_dotenv("Token.env")
+TOKEN = os.getenv("BOT_TOKEN")
+CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
+CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
+ADMINS = [7480707710,]  # Ganti dengan ID kamu
 
+# =========================================================
+# 🔐 SISTEM WARNING & BAN
+# =========================================================
 VIOLATOR_FILE = "violators.json"
 
 def load_violators():
-    """Memuat data pelanggar dari file JSON"""
     if os.path.exists(VIOLATOR_FILE):
         with open(VIOLATOR_FILE, "r", encoding="utf-8") as f:
             try:
@@ -31,77 +32,123 @@ def load_violators():
     return {}
 
 def save_violators(data):
-    """Menyimpan data pelanggar ke file JSON"""
     with open(VIOLATOR_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
-def add_warning(user_id: int, username: str):
-    """Menambah warning ke user. Return tuple (warnings, banned_status)."""
+from datetime import datetime
+
+def add_warning(user_id: int, username: str, badword: str, full_msg: str):
+    """Tambah warning ke user + catat detail pelanggaran."""
     data = load_violators()
     user_id = str(user_id)
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     if user_id not in data:
-        data[user_id] = {"username": username, "warnings": 0, "banned": False}
+        data[user_id] = {
+            "username": username,
+            "warnings": 0,
+            "banned": False,
+            "violations": []
+        }
 
-    # tambah warning
+    # Tambahkan pelanggaran baru
     data[user_id]["warnings"] += 1
+    data[user_id]["violations"].append({
+        "word": badword,
+        "message": full_msg,
+        "timestamp": now
+    })
 
-    # jika warning >= 3 maka banned
+    # Blokir kalau sudah 3x
     if data[user_id]["warnings"] >= 3:
         data[user_id]["banned"] = True
 
     save_violators(data)
     return data[user_id]["warnings"], data[user_id]["banned"]
 
+
 def is_banned(user_id: int):
-    """Cek apakah user sudah diban"""
     data = load_violators()
     user = data.get(str(user_id))
-    if user and user.get("banned"):
-        return True
-    return False
-
+    return bool(user and user.get("banned"))
 
 # =========================================================
-# BAGIAN SCRIPT ASLI
+# 🧠 FILTER KATA KOTOR
 # =========================================================
 
-# baca daftar kata terlarang dari file
+# baca file badwords.txt
 with open("badwords.txt", "r", encoding="utf-8") as f:
     BAD_WORDS = [line.strip().lower() for line in f if line.strip()]
 
 # mapping huruf mirip
 LEET_MAP = {
     "4": "a", "@": "a",
-    "1": "i", "!": "i", "|": "i",
+    "1": "i", "!": "i", "|": "i", "¡": "i",
     "3": "e",
     "5": "s", "$": "s",
     "0": "o",
-    "7": "t"
+    "7": "t",
+    "9": "g"
 }
 
 def normalize_text(text: str) -> str:
     text = text.lower()
-    # ganti huruf leetspeak
     for k, v in LEET_MAP.items():
         text = text.replace(k, v)
-    # hapus huruf berulang lebih dari 2
-    text = re.sub(r"(.)\1{2,}", r"\1", text)
+    text = re.sub(r"(.)\1{2,}", r"\1", text)  # hapus huruf berulang
+    text = re.sub(r"[^a-zA-Z\s]", " ", text)  # hapus simbol
     return text
 
-def contains_badword(text: str, badwords: list) -> bool:
-    norm = normalize_text(text)
-    for bad in badwords:
-        pattern = r"\b" + re.escape(bad) + r"\b"
-        if re.search(pattern, norm):
-            return True
-    return False
+import re
+import unicodedata
 
-# simpan waktu terakhir tiap user kirim menfess
+def super_clean_text(text: str) -> str:
+    # Normalisasi unicode (misal: huruf tebal, miring, font unik jadi standar)
+    text = unicodedata.normalize("NFKD", text)
+    # Ubah ke huruf kecil
+    text = text.lower()
+    # Ganti huruf mirip (leetspeak dan font variasi)
+    replacements = {
+        '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '@': 'a',
+        '$': 's', '!': 'i', '|': 'i', '+': 't', '(': 'c', ')': 'c',
+        '{': 'c', '}': 'c', '[': 'c', ']': 'c',
+        'ᴏ': 'o', 'ʟ': 'l', 'ᴀ': 'a', 'ᴋ': 'k', 'ɴ': 'n', 'ᴅ': 'd', 'ʀ': 'r',
+        'ʙ': 'b', 'ʜ': 'h', 'ɢ': 'g', 'ɪ': 'i', 'ꜱ': 's', 'ᴛ': 't',
+        'ᴍ': 'm', 'ɯ': 'm', 'ʏ': 'y', 'ɾ': 'r', 'ᴘ': 'p', 'ꞯ': 'n'
+    }
+    for key, val in replacements.items():
+        text = text.replace(key, val)
+
+    # Hapus semua karakter non huruf/angka
+    text = re.sub(r'[^a-z0-9]', '', text)
+    return text
+
+
+def escape_markdown(text: str) -> str:
+    """Melindungi karakter spesial agar tidak error di Markdown."""
+    escape_chars = r"\_*[]()~`>#+-=|{}.!"
+    for ch in escape_chars:
+        text = text.replace(ch, f"\\{ch}")
+    return text
+
+def contains_badword(message: str, badwords: list):
+    """Kembalikan kata kotor yang terdeteksi, atau None jika aman."""
+    cleaned = super_clean_text(message)
+    for word in badwords:
+        word_cleaned = super_clean_text(word)
+        if word_cleaned in cleaned:
+            print(f"[DEBUG] Kata terdeteksi: {word} -> {message}")
+            return word  # ⬅️ Kembalikan kata yang ditemukan
+    return None
+
+
+
+# =========================================================
+# ⚙️ SISTEM BOT
+# =========================================================
+
 user_last_sent = {}
 
-
-# Command /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         "===== ___\n\n"
@@ -125,126 +172,118 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(text, parse_mode="Markdown")
 
-
-# Fungsi cek membership
 async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     try:
         member = await context.bot.get_chat_member(CHANNEL_USERNAME, user_id)
         if member.status in ["left", "kicked"]:
-            await update.message.reply_text(
-                f"⚠️ Kamu harus join channel {CHANNEL_USERNAME} dulu!"
-            )
+            await update.message.reply_text(f"⚠️ Kamu harus join channel {CHANNEL_USERNAME} dulu!")
             return False
         return True
     except:
-        await update.message.reply_text(
-            "⚠️ Gagal mengecek status keanggotaan channel. "
-            "Pastikan bot sudah admin di channel."
-        )
+        await update.message.reply_text("⚠️ Gagal mengecek status keanggotaan channel. Pastikan bot sudah admin di channel.")
         return False
 
-
-
-# Handler pesan user
 async def menfess(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     username = update.effective_user.username or "-"
-    
-    # 🚫 Cek apakah user dibanned
+
+    # 🚫 cek ban
     if is_banned(user_id):
-        await update.message.reply_text(
-            "🚫 Kamu telah diblokir karena berulang kali melanggar aturan."
-        )
+        await update.message.reply_text("🚫 Kamu telah diblokir karena berulang kali melanggar aturan.")
         return
 
-    # cek membership channel dulu
+    # cek membership
     if not await check_membership(update, context):
-        return  # hentikan jika belum join
-        
+        return
+
     user_text = update.message.text.strip()
     now = time.time()
 
-    # cek jeda 10 menit, kecuali admin
+    # cek delay kirim
     if user_id not in ADMINS:
         if user_id in user_last_sent:
             elapsed = now - user_last_sent[user_id]
-            if elapsed < 600:  # 600 detik = 10 menit
+            if elapsed < 600:  # 10 menit
                 remaining = int((600 - elapsed) / 60) + 1
-                await update.message.reply_text(
-                    f"⏳ Kamu hanya bisa kirim 1 menfess setiap 10 menit.\n"
-                    f"Tunggu sekitar {remaining} menit lagi ya."
-                )
+                await update.message.reply_text(f"⏳ Kamu hanya bisa kirim 1 menfess setiap 10 menit.\nTunggu sekitar {remaining} menit lagi ya.")
                 return
 
-    # 🚨 CEK KATA TERLARANG
-    if contains_badword(user_text, BAD_WORDS):
-        warnings, banned = add_warning(user_id, username)
+    # 🚨 filter badword
+    detected_word = contains_badword(user_text, BAD_WORDS)
+    if detected_word:
+        warnings, banned = add_warning(user_id, username, detected_word, user_text)
+        safe_word = escape_markdown(detected_word)
         if banned:
             await update.message.reply_text(
-                "🚫 Kamu telah diblokir karena 3 kali melanggar aturan. "
-                "Kamu tidak bisa lagi menggunakan bot ini."
+                f"🚫 Kamu telah diblokir karena 3 kali melanggar aturan.\n"
+                f"Kata terakhir yang melanggar: `{safe_word}`",
+                parse_mode="Markdown"
             )
         else:
             await update.message.reply_text(
-                f"⚠️ Pesanmu mengandung kata yang tidak pantas.\n"
-                f"Ini peringatan ke-{warnings} dari 3. "
-                "Jika kamu melanggar lagi, kamu akan diblokir."
+                f"⚠️ Pesanmu mengandung kata yang tidak pantas: `{safe_word}`\n"
+                f"Ini peringatan ke-{warnings} dari 3.",
+                parse_mode="Markdown"
             )
         return
 
 
-    # Regex untuk cek format wajib
-    pattern = (
-        r"^Dibalik Masker\s*:\s*(.+)\n"     # grup 1 = Dibalik Masker
-        r"Target\s*:\s*(.+)\n"               # grup 2 = Target
-        r"Ungkapan\s*:\s*(.+)"               # grup 3 = Ungkapan
-    )
 
+    # cek format
+    pattern = (
+        r"^Dibalik Masker\s*:\s*(.+)\n"
+        r"Target\s*:\s*(.+)\n"
+        r"Ungkapan\s*:\s*(.+)"
+    )
     match = re.match(pattern, user_text, re.DOTALL | re.IGNORECASE)
     if not match:
         await update.message.reply_text(
-            "❌ Format salah.\n\n"
-            "Gunakan format berikut:\n\n"
-            "`"
-            "Dibalik Masker : \n"
-            "Target : \n"
-            "Ungkapan : \n"
-            "`",
+            "❌ Format salah.\n\nGunakan format berikut:\n\n"
+            "`Dibalik Masker : \nTarget : \nUngkapan : \n`",
             parse_mode="Markdown"
         )
         return
 
-    dibalik_masker = match.group(1).strip()
-    target = match.group(2).strip()
-    ungkapan = match.group(3).strip()
-
-    # kirim ke channel
-    text = (
-        "📩 *Menfess Baru*\n\n"
-        f"Dibalik Masker : {dibalik_masker}\n"
-        f"Target : {target}\n"
-        f"Ungkapan : {ungkapan}"
-    )
+    dibalik_masker, target, ungkapan = match.groups()
+    text = f"📩 *Menfess Baru*\n\nDibalik Masker : {dibalik_masker.strip()}\nTarget : {target.strip()}\nUngkapan : {ungkapan.strip()}"
     await context.bot.send_message(chat_id=CHANNEL_ID, text=text, parse_mode="Markdown")
 
-    # update waktu terakhir user kirim
     user_last_sent[user_id] = now
-
-    # konfirmasi ke user
     await update.message.reply_text("✅ Pssst... Pesanmu telah dilepaskan dari balik bayang. Kini biarlah mereka membacanya… tanpa tahu siapa yang menulisnya!")
+
+async def violators(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id not in ADMINS:
+        await update.message.reply_text("🚫 Kamu tidak memiliki izin untuk melihat data pelanggar.")
+        return
+
+    data = load_violators()
+    if not data:
+        await update.message.reply_text("✅ Belum ada pelanggar terdeteksi.")
+        return
+
+    text_list = []
+    for uid, info in data.items():
+        username = info.get("username", "-")
+        warnings = info.get("warnings", 0)
+        banned = "🚫" if info.get("banned") else "⚠️"
+        last_word = info["violations"][-1]["word"] if info["violations"] else "-"
+        text_list.append(f"{banned} `{uid}` ({username}) — {warnings}x pelanggaran\nTerakhir: {last_word}")
+
+    text = "\n\n".join(text_list)
+    await update.message.reply_text(f"📋 *Daftar Pelanggar:*\n\n{text}", parse_mode="Markdown")
+
 
 
 def main():
     app = Application.builder().token(TOKEN).build()
-
-    # daftar handler
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("violators", violators))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menfess))
 
-    # jalankan polling
+    print("Bot menfess berjalan...")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
-# bot.py
