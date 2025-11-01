@@ -119,9 +119,10 @@ def super_clean_text(text: str) -> str:
     for key, val in replacements.items():
         text = text.replace(key, val)
 
-    # Hapus semua karakter non huruf/angka
-    text = re.sub(r'[^a-z0-9]', '', text)
+    # ✅ benar — sisakan spasi agar kata tidak menempel
+    text = re.sub(r'[^a-z0-9\s]', '', text)
     return text
+
 
 
 def escape_markdown(text: str) -> str:
