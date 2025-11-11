@@ -131,5 +131,22 @@
         "timestamp": "2025-11-09 18:21:36"
       }
     ]
+  },
+  "6131099226": {
+    "username": "akunneeds",
+    "warnings": 2,
+    "banned": false,
+    "violations": [
+      {
+        "word": "bacot",
+        "message": "Dibalik masker: kooa\nTarget: . @sate911\nUngkapan :  \nBerisik tai cowo byk bacot, mulut lemes yapping ga jelas",
+        "timestamp": "2025-11-11 13:45:33"
+      },
+      {
+        "word": "tai",
+        "message": "Dibalik masker: kooa\nTarget: . @sate911\nUngkapan :  \nBerisik tai cowo byk b4c00tt, mulut lemes yapping ga jelas",
+        "timestamp": "2025-11-11 13:45:48"
+      }
+    ]
   }
 }
