@@ -184,5 +184,34 @@
         "timestamp": "2025-11-12 12:04:51"
       }
     ]
+  },
+  "8186380522": {
+    "username": "love4short",
+    "warnings": 1,
+    "banned": false,
+    "violations": [
+      {
+        "word": "bodoh",
+        "message": "Dibalik Masker : \nTarget : atas jg\nUngkapan : ga ngomongin soal mental, tapi spillan nya bahkan diluar topik soal \"nyindir\" jadi jangan disama ratain yang ke spill itu karna problem nya soal sindir menyindir ya bodoh",
+        "timestamp": "2025-11-12 15:50:38"
+      }
+    ]
+  },
+  "5498902682": {
+    "username": "oredbul",
+    "warnings": 2,
+    "banned": false,
+    "violations": [
+      {
+        "word": "cok",
+        "message": "Dibalik Masker : \nTarget : \nUngkapan : pdhl org yg kalian bahas adem adem bae dah, napa lu pada ngungkit ngungkit yg berujung bakal berantem Cok? Mending sebat ma ngopi sini",
+        "timestamp": "2025-11-12 15:57:35"
+      },
+      {
+        "word": "cuk",
+        "message": "Dibalik Masker : \nTarget : \nUngkapan : pdhl org yg kalian bahas adem adem bae dah, napa lu pada ngungkit ngungkit yg berujung bakal berantem Cuk? Mending sebat ma ngopi sini",
+        "timestamp": "2025-11-12 15:57:48"
+      }
+    ]
   }
 }
