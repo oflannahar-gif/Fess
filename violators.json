@@ -160,5 +160,17 @@
         "timestamp": "2025-11-12 05:04:59"
       }
     ]
+  },
+  "6909600317": {
+    "username": "Selaistobeli",
+    "warnings": 1,
+    "banned": false,
+    "violations": [
+      {
+        "word": "anjay",
+        "message": "Dibalik Masker : \nTarget : atas\nUngkapan : itu nmnya karma gksi? Apa yg dia tabur itu dia tuai, jadi pelajaran aja #anjay",
+        "timestamp": "2025-11-12 06:06:35"
+      }
+    ]
   }
 }
