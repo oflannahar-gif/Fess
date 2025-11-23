@@ -311,7 +311,7 @@ def build_confirm_keyboard(message_id: int) -> InlineKeyboardMarkup:
 def build_see_message_keyboard(group_message_id: int) -> InlineKeyboardMarkup:
     """Tombol untuk lihat komentar di GRUP (bukan channel)."""
     url = build_group_message_url(group_message_id)
-    keyboard = [[InlineKeyboardButton("See Message", url=url)]]
+    keyboard = [[InlineKeyboardButton("👁 Lihat balasan", url=url)]]
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -475,8 +475,8 @@ async def handle_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     notif_text = (
-        f"{commenter_name}, Commented on your post!\n\n"
-        "Reply to this is to reply to comments anonymously"
+        f"{commenter_name}, baru saja mengomentari postinganmu!\n\n"
+        "Balas pesan ini untuk mengirim secara anonim"
     )
 
     keyboard = build_see_message_keyboard(msg.message_id)
