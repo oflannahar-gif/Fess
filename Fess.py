@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # =========================================================
 # 🔧 KONFIGURASI
 # =========================================================
-load_dotenv("token.env")
+load_dotenv("Token.env")
 TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
