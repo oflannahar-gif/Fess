@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # =========================================================
 # 🔧 KONFIGURASI
 # =========================================================
-load_dotenv("Token.env")
+load_dotenv("token.env")
 TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
@@ -476,7 +476,7 @@ async def handle_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     notif_text = (
         f"{commenter_name}, baru saja mengomentari postinganmu!\n\n"
-        "Balas pesan ini untuk mengirim secara anonim"
+        f"Balas pesan ini untuk membalas komentar {commenter_name} secara anonim"
     )
 
     keyboard = build_see_message_keyboard(msg.message_id)
